@@ -1,7 +1,7 @@
 # A188-covid19-group
 Team Research and Development
 
-# COVID-19 Deaths Analysis: Rich vs Poor Countries
+# COVID-19 Weekly Deaths: Comparing High-Income and Low-Income Countries
 
 A statistical study comparing reported COVID-19 deaths between high-income and low-income countries.
 
