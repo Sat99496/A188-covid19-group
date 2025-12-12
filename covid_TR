@@ -1,0 +1,155 @@
+library(ggplot2)
+library(dplyr)
+library(effsize)
+library(scales)
+
+covid_data <- read.csv("full_data.csv")
+
+analysis_data <- covid_data %>%
+  filter(location %in% c("High income", "Low income")) %>%
+  filter(!is.na(weekly_deaths))
+
+analysis_data$income_group <- factor(analysis_data$location)
+
+descriptive_stats <- analysis_data %>%
+  group_by(income_group) %>%
+  summarise(
+    n = n(),
+    mean = mean(weekly_deaths),
+    median = median(weekly_deaths),
+    sd = sd(weekly_deaths),
+    min = min(weekly_deaths),
+    max = max(weekly_deaths),
+    IQR = IQR(weekly_deaths)
+  )
+
+print(descriptive_stats)
+
+high_income_mean <- descriptive_stats$mean[descriptive_stats$income_group == "High income"]
+low_income_mean  <- descriptive_stats$mean[descriptive_stats$income_group == "Low income"]
+high_income_sd   <- descriptive_stats$sd[descriptive_stats$income_group == "High income"]
+low_income_sd    <- descriptive_stats$sd[descriptive_stats$income_group == "Low income"]
+high_income_n    <- descriptive_stats$n[descriptive_stats$income_group == "High income"]
+low_income_n     <- descriptive_stats$n[descriptive_stats$income_group == "Low income"]
+
+high_income_deaths <- analysis_data %>%
+  filter(income_group == "High income") %>%
+  pull(weekly_deaths)
+
+low_income_deaths <- analysis_data %>%
+  filter(income_group == "Low income") %>%
+  pull(weekly_deaths)
+
+shapiro_high <- shapiro.test(high_income_deaths)
+shapiro_low  <- shapiro.test(low_income_deaths)
+
+print(shapiro_high)
+print(shapiro_low)
+
+t_test_result <- t.test(weekly_deaths ~ income_group, data = analysis_data, var.equal = FALSE)
+print(t_test_result)
+
+wilcox_result <- wilcox.test(weekly_deaths ~ income_group, data = analysis_data)
+print(wilcox_result)
+
+cohens_d_result <- cohen.d(weekly_deaths ~ income_group, data = analysis_data)
+print(cohens_d_result)
+
+t_statistic <- t_test_result$statistic
+t_df        <- t_test_result$parameter
+t_pvalue    <- t_test_result$p.value
+effect_size <- cohens_d_result$estimate
+
+histogram_high <- ggplot(analysis_data %>% filter(income_group == "High income"), aes(x = weekly_deaths)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 35, fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dnorm, args = list(mean = mean(high_income_deaths), sd = sd(high_income_deaths)), color = "red", linewidth = 1.3) +
+  scale_x_continuous(labels = comma, breaks = seq(0, 60000, 10000)) +
+  scale_y_continuous(labels = scientific) +
+  labs(
+    title = "Distribution of Weekly COVID-19 Deaths: High Income Countries",
+    x = "Weekly Deaths (number of deaths)",
+    y = "Density"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 14, face = "bold", margin = margin(r = 10)),
+    axis.text = element_text(size = 12)
+  )
+
+print(histogram_high)
+ggsave("histogram_high_income.png", histogram_high, width = 10, height = 6, dpi = 300)
+
+histogram_low <- ggplot(analysis_data %>% filter(income_group == "Low income"), aes(x = weekly_deaths)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 35, fill = "tomato", color = "black", alpha = 0.7) +
+  stat_function(fun = dnorm, args = list(mean = mean(low_income_deaths), sd = sd(low_income_deaths)), color = "blue", linewidth = 1.3) +
+  scale_x_continuous(labels = comma, breaks = seq(0, 2500, 500)) +
+  scale_y_continuous(labels = scientific) +
+  labs(
+    title = "Distribution of Weekly COVID-19 Deaths: Low Income Countries",
+    x = "Weekly Deaths (number of deaths)",
+    y = "Density"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 14, face = "bold", margin = margin(r = 10)),
+    axis.text = element_text(size = 12)
+  )
+
+print(histogram_low)
+ggsave("histogram_low_income.png", histogram_low, width = 10, height = 6, dpi = 300)
+
+boxplot_comparison <- ggplot(analysis_data, aes(x = income_group, y = weekly_deaths, fill = income_group)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21, outlier.size = 2) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 5, fill = "yellow", color = "black", stroke = 1.5) +
+  scale_fill_manual(values = c("High income" = "skyblue", "Low income" = "tomato")) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    title = "COVID-19 Weekly Deaths: High Income vs Low Income Countries",
+    subtitle = "Yellow diamond indicates mean value",
+    x = "Country Income Level",
+    y = "Weekly Deaths (number of deaths)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 14, face = "bold", margin = margin(r = 10)),
+    axis.text = element_text(size = 12),
+    legend.position = "none"
+  )
+
+print(boxplot_comparison)
+ggsave("boxplot_comparison.png", boxplot_comparison, width = 10, height = 7, dpi = 300)
+
+bar_chart <- ggplot(descriptive_stats, aes(x = income_group, y = mean, fill = income_group)) +
+  geom_bar(stat = "identity", alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), width = 0.25, linewidth = 1.1) +
+  geom_text(aes(label = sprintf("Mean = %s", comma(round(mean)))), vjust = -0.5, size = 5, fontface = "bold") +
+  scale_fill_manual(values = c("High income" = "skyblue", "Low income" = "tomato")) +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "Mean Weekly COVID-19 Deaths by Income Group",
+    subtitle = "Error bars show ±1 standard deviation",
+    x = "Country Income Level",
+    y = "Mean Weekly Deaths (number of deaths)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 14, face = "bold", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 14, face = "bold", margin = margin(r = 10)),
+    axis.text = element_text(size = 12),
+    legend.position = "none"
+  )
+
+print(bar_chart)
+ggsave("bar_chart_means.png", bar_chart, width = 10, height = 7, dpi = 300)
+
